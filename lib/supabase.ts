@@ -21,15 +21,16 @@ export function getServiceClient(): SupabaseClient {
 
 export type EpisodeStatus = "pending" | "generating" | "ready" | "failed";
 
+export type DialogueLine = { speaker: "host" | "guest"; text: string };
+
 export type EpisodeRow = {
   id: string;
   episode_number: number | null;
   title: string;
   description: string;
-  overview: string;
+  dialogue: DialogueLine[];
   source_refs: string[] | null;
   status: EpisodeStatus;
-  elevenlabs_project_id: string | null;
   audio_path: string | null;
   audio_duration_seconds: number | null;
   audio_size_bytes: number | null;

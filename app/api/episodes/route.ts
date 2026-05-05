@@ -9,7 +9,15 @@ export const dynamic = "force-dynamic";
 const PayloadSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(500),
-  overview: z.string().min(1),
+  dialogue: z
+    .array(
+      z.object({
+        speaker: z.enum(["host", "guest"]),
+        text: z.string().min(1).max(2000),
+      })
+    )
+    .min(1)
+    .max(500),
   source_refs: z.array(z.string()).optional(),
   published_at: z.string().datetime(),
 });
@@ -48,7 +56,7 @@ export async function POST(req: NextRequest) {
     .insert({
       title: parsed.data.title,
       description: parsed.data.description,
-      overview: parsed.data.overview,
+      dialogue: parsed.data.dialogue,
       source_refs: parsed.data.source_refs ?? null,
       published_at: parsed.data.published_at,
     })
