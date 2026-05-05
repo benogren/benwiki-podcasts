@@ -10,7 +10,7 @@ const GUEST_VOICE_ID = Deno.env.get("ELEVENLABS_GUEST_VOICE_ID")!;
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 1;
-const TTS_CONCURRENCY = 5;
+const TTS_CONCURRENCY = 1;
 const BUCKET = "episode-audio";
 const BITRATE_BYTES_PER_SEC = 16000; // mp3_44100_128 = 128 kbps
 
