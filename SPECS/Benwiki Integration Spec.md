@@ -61,6 +61,10 @@ Content-Type: application/json
 
 Body: the JSON object described in §2.
 
+**Current webhook URLs:**
+- **Local development**: `http://localhost:3000/api/episodes` (when the Benwiki Podcasts service is running via `pnpm dev`)
+- **Production**: TBD — will be `https://<project>.vercel.app/api/episodes` once deployed to Vercel
+
 ### Expected responses
 - **202 Accepted** — `{ "id": "<uuid>", "status": "pending" }`. Episode queued. Done.
 - **400 Bad Request** — payload invalid. Log the response body. Do not retry without fixing the payload.
@@ -88,11 +92,13 @@ Body: the JSON object described in §2.
 Benwiki reads two env vars from `.env` (gitignored):
 
 ```
-BENWIKI_PODCASTS_WEBHOOK_URL=https://<benwiki-podcasts-host>/api/episodes
-BENWIKI_PODCASTS_TOKEN=<32-byte hex, matches the service's BENWIKI_WEBHOOK_TOKEN>
+BENWIKI_PODCASTS_WEBHOOK_URL=http://localhost:3000/api/episodes
+BENWIKI_PODCASTS_TOKEN=<copy from benwiki-pods .env.local, key BENWIKI_WEBHOOK_TOKEN>
 ```
 
-Both values are issued by the Benwiki Podcasts service.
+`BENWIKI_PODCASTS_TOKEN` must match the value of `BENWIKI_WEBHOOK_TOKEN` in the Benwiki Podcasts service's `.env.local` (and, once deployed, in the Vercel environment variables). Both ends of the wire need the same string.
+
+When the service is deployed to Vercel, swap the URL to the Vercel production URL.
 
 ## 6. Pseudocode
 
