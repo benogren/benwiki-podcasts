@@ -146,18 +146,16 @@ for attempt in 1..3:
   sleep(backoff(attempt))            # 1s, 4s, 16s
 ```
 
-## 7. Test episode
+## 7. Smoke test
 
-Before wiring this into the real ingest pipeline, generate one hand-crafted test payload to validate the round trip:
+Useful any time you want to validate the round trip end-to-end (e.g. after changing the dialogue generator, rotating tokens, or onboarding a new environment):
 
 1. Pick 2–3 real articles (or one substantive concept page) from Benwiki
 2. Have Claude (or your LLM of choice) generate a `dialogue` array of 60–150 lines from the overview
 3. Wrap it in the payload from §4 with a `title`, `description`, and `published_at`
 4. POST it to the webhook with `curl`
-5. Watch the row move `pending → generating → ready` in the Supabase console (audio rendering takes ~1-3 minutes per episode)
+5. Watch the row move `pending → generating → ready` in the Supabase console (end-to-end takes ~1–2 minutes: up to 60s waiting for the cron tick, plus ~30–60s of rendering)
 6. Subscribe to the RSS feed in a podcast app and confirm the episode appears and plays
-
-Once the test episode works end-to-end, wire up the automated path in §6.
 
 ## 8. Out of scope
 

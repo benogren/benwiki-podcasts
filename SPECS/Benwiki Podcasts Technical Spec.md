@@ -274,5 +274,5 @@ To disable: `select cron.unschedule('generate-pending');`
 | 6. Audio passthrough | ✅ |
 | 7. Vercel + Supabase deploy | ✅ |
 | 8. Cover image + show metadata | ✅ |
-| 9. **pg_cron schedule** (§10) | ⏳ Pending |
+| 9. pg_cron schedule (§10) | ✅ |
 | 10. Wire up Benwiki to the production webhook | ⏳ Producer-side work |
