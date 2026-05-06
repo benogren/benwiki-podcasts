@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Benwiki Podcasts
 
-## Getting Started
+A private podcast feed generated from my [Benwiki](https://github.com/benogren/benwiki) knowledge base. Benwiki ingests articles and newsletters, drafts a two-host dialogue script, and POSTs it here. This service renders the dialogue to audio with ElevenLabs, stores it, and serves it as an RSS feed I can subscribe to from any podcast app.
 
-First, run the development server:
+Single-user, no UI. Operational monitoring is via the Supabase dashboard.
+
+## Specs
+
+The specs in `SPECS/` are the source of truth for what this service does and how it's built.
+
+- **[`Benwiki Podcasts PRD.md`](./SPECS/Benwiki%20Podcasts%20PRD.md)** — product requirements (the *what* and *why*)
+- **[`Benwiki Podcasts Technical Spec.md`](./SPECS/Benwiki%20Podcasts%20Technical%20Spec.md)** — architecture, data model, env vars, milestones (the *how*)
+- **[`Benwiki Integration Spec.md`](./SPECS/Benwiki%20Integration%20Spec.md)** — the contract Benwiki must implement (lives here for now; copy into the Benwiki repo when wiring up the producer side)
+
+If you're modifying behavior, update the spec first.
+
+## Deployment
+
+- **Production:** [`benwiki-podcasts.vercel.app`](https://benwiki-podcasts.vercel.app/)
+- **Webhook:** `POST /api/episodes` (bearer-token auth)
+- **RSS feed:** `GET /feed/<RSS_FEED_TOKEN>.xml`
+- **Audio passthrough:** `GET /audio/<episode-id>.mp3`
+
+The pipeline runs across two clouds:
+- **Vercel** hosts the webhook, RSS feed, and audio passthrough (Next.js App Router).
+- **Supabase** hosts the Postgres database, the private `episode-audio` storage bucket, and the `generate-pending` edge function that does the ElevenLabs TTS rendering.
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env.local
+# fill in values — see the technical spec §7 for what each var is
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The local dev server runs at `http://localhost:3000` and reads from the same Supabase project as production. To smoke-test the webhook locally:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+TOKEN=$(grep -E '^BENWIKI_WEBHOOK_TOKEN=' .env.local | cut -d= -f2-)
+curl -X POST http://localhost:3000/api/episodes \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @path/to/dialogue-payload.json
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The edge function only runs on Supabase — it doesn't run locally with `pnpm dev`. Trigger it manually with:
 
-## Learn More
+```bash
+KEY=$(grep -E '^SUPABASE_SERVICE_ROLE_KEY=' .env.local | cut -d= -f2-)
+curl -X POST https://<project-ref>.supabase.co/functions/v1/generate-pending \
+  -H "Authorization: Bearer ${KEY}"
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Common operations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Apply a new migration to the linked Supabase project
+supabase db push
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Deploy the edge function after editing it
+supabase functions deploy generate-pending
 
-## Deploy on Vercel
+# Update an edge function secret (e.g. swap ElevenLabs voice)
+supabase secrets set ELEVENLABS_HOST_VOICE_ID=<new-voice-id>
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# See what's in the queue
+# (paste in Supabase SQL Editor)
+select id, episode_number, status, attempts, last_error, ready_at
+  from episodes
+  order by created_at desc
+  limit 20;
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Reset a stuck row to retry
+update episodes
+   set status = 'pending', attempts = 0, last_error = null
+ where id = '<uuid>';
+```
+
+## Stack
+
+- **Next.js 16** (App Router, TypeScript) on Vercel
+- **Supabase** for Postgres, Storage, Edge Functions, and pg_cron
+- **ElevenLabs** for TTS (`eleven_turbo_v2_5` model by default — see Technical Spec §4)
+- **Zod** for webhook payload validation
+
+## Repo conventions
+
+- Specs in `SPECS/` are the source of truth. Edit them before changing behavior.
+- `.env.local` is gitignored; `.env.example` is tracked. Keep them in sync when adding new env vars.
+- Migrations live in `supabase/migrations/` with `YYYYMMDDHHMMSS_name.sql` naming required by `supabase db push`.
+- Edge functions live in `supabase/functions/` — Deno runtime, URL imports. Excluded from the Next.js TypeScript project (see `tsconfig.json`).

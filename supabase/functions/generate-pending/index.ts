@@ -10,7 +10,6 @@ const GUEST_VOICE_ID = Deno.env.get("ELEVENLABS_GUEST_VOICE_ID")!;
 
 const MAX_ATTEMPTS = 3;
 const BATCH_SIZE = 1;
-const TTS_CONCURRENCY = 1;
 const BUCKET = "episode-audio";
 const BITRATE_BYTES_PER_SEC = 16000; // mp3_44100_128 = 128 kbps
 
@@ -46,11 +45,24 @@ async function ttsLine(line: DialogueLine): Promise<Uint8Array> {
 
 async function renderDialogue(dialogue: DialogueLine[]): Promise<Uint8Array> {
   const audio: Uint8Array[] = new Array(dialogue.length);
-  for (let i = 0; i < dialogue.length; i += TTS_CONCURRENCY) {
-    const slice = dialogue.slice(i, i + TTS_CONCURRENCY);
-    const chunks = await Promise.all(slice.map(ttsLine));
-    for (let j = 0; j < chunks.length; j++) audio[i + j] = chunks[j];
-  }
+
+  // Group line indices by voice. ElevenLabs returns 409 if two requests for
+  // the same voice are in flight simultaneously, so we serialize per voice.
+  // Different voices run in parallel, halving wall time on alternating dialogue.
+  const indicesByVoice: Record<"host" | "guest", number[]> = { host: [], guest: [] };
+  dialogue.forEach((line, i) => indicesByVoice[line.speaker].push(i));
+
+  const processVoice = async (indices: number[]) => {
+    for (const i of indices) {
+      audio[i] = await ttsLine(dialogue[i]);
+    }
+  };
+
+  await Promise.all([
+    processVoice(indicesByVoice.host),
+    processVoice(indicesByVoice.guest),
+  ]);
+
   const total = audio.reduce((s, a) => s + a.length, 0);
   const out = new Uint8Array(total);
   let off = 0;
